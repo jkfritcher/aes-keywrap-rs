@@ -1,26 +1,27 @@
 // Copyright (c) 2020, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
-use crate::error::KeyWrapError;
-use crate::types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN};
+use crate::{
+    error::KeyWrapError,
+    types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN},
+};
 use block_modes::BlockMode;
 
 pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapError> {
     #[allow(non_snake_case)]
     let A: [u8; BLOCK_LEN] = [0xa6; BLOCK_LEN];
     let mut ct: Vec<u8> = Vec::new();
-    let pt_len = pt.len();
-
-    // Plaintext must be multiples of 8 in length
-    if (pt_len % BLOCK_LEN) != 0 {
-        return Err("Ciphertext length must be a multiple of 8 octets in length".into());
+    let pt_len = match pt.len() {
+        pt_len if (pt_len % BLOCK_LEN) > 0 => {
+            return Err("Plaintext length must be a multiple of 8 octets in length".into())
+        },
+        pt_len => pt_len,  // pt should be a multiple of BLOCK_LEN
     };
-    let n = pt_len / BLOCK_LEN;
 
-    // pt must be atleast 2 blocks in size
-    if n < 2 {
-        return Err("Plaintext length must be atleast 16 octets".into());
-    }
+    let n = match pt_len / BLOCK_LEN {
+        0 | 1 => { return Err("Plaintext length must be atleast 16 octets".into()) },
+        n  => n,  // pt must be at least 2 blocks in size
+    };
 
     // Check for valid key lengths and get func pointer
     let aes_func = match key.len() {
@@ -47,17 +48,14 @@ pub fn aes_wrap_with_padding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapEr
     #[allow(non_snake_case)]
     let mut A: [u8; BLOCK_LEN] = [0xa6, 0x59, 0x59, 0xa6, 0, 0, 0, 0];
     let mut ct: Vec<u8> = Vec::new();
-    let pt_len = pt.len();
-
-    // Need atleast one octet of plaintext.
-    if pt_len == 0 {
-        return Err("Plaintext length must be atleast 1 octet".into());
-    }
-
-    // The MLI restricts pt.len() to a u32
-    if pt_len > u32::MAX as usize {
-        return Err(format!("Plaintext length can not be larger than {}", u32::MAX).into());
-    }
+    let pt_len = match pt.len() {
+        0 => { return Err("Plaintext length must be atleast 1 octet".into()) },
+        pt_len if pt_len > u32::MAX as usize => {
+            // The MLI restricts pt.len() to a u32
+            return Err(format!("Plaintext length can not be larger than {}", u32::MAX).into());
+        },
+        pt_len => pt_len,  // Need atleast one octet of plaintext.
+    };
 
     // Check for valid key lengths and get func pointer
     let aes_func = match key.len() {

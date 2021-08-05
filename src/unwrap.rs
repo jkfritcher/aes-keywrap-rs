@@ -1,25 +1,25 @@
 // Copyright (c) 2020, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
-use crate::error::KeyWrapError;
-use crate::types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN};
-
+use crate::{
+    error::KeyWrapError,
+    types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN},
+};
 use block_modes::BlockMode;
 
 pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapError> {
     let mut pt: Vec<u8> = Vec::new();
-    let ct_len = ct.len();
-
-    // ct should be a multiple of BLOCK_LEN
-    if (ct_len % BLOCK_LEN) != 0 {
-        return Err("Ciphertext length must be a multiple of 8 octets in length".into());
+    let ct_len = match ct.len() {
+        ct_len if (ct_len % BLOCK_LEN) > 0 => {
+            return Err("Ciphertext length must be a multiple of 8 octets in length".into())
+        },
+        ct_len => ct_len,  // ct should be a multiple of BLOCK_LEN
     };
-    let n = (ct_len / BLOCK_LEN) - 1;
 
-    // ct must be atleast 3 blocks in size
-    if n < 2 {
-        return Err("Ciphertext length must be atleast 24 octets".into());
-    }
+    let n = match (ct_len / BLOCK_LEN) - 1 {
+        0 | 1 => { return Err("Ciphertext length must be atleast 24 octets".into()) },
+        n  => n,  // ct must be at least 3 blocks in size
+    };
 
     // Resize pt to ct lenth and copy ct into pt
     pt.resize(ct_len, 0);
@@ -48,18 +48,17 @@ pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWr
 
 pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapError> {
     let mut pt: Vec<u8> = Vec::new();
-    let ct_len = ct.len();
-
-    // ct should be a multiple of BLOCK_LEN
-    if (ct_len % BLOCK_LEN) != 0 {
-        return Err("Ciphertext length must be a multiple of 8 octets in length".into());
+    let ct_len = match ct.len() {
+        ct_len if (ct_len % BLOCK_LEN) > 0 => {
+            return Err("Ciphertext length must be a multiple of 8 octets in length".into())
+        },
+        ct_len => ct_len,  // ct should be a multiple of BLOCK_LEN
     };
-    let n = (ct_len / BLOCK_LEN) - 1;
 
-    // ct must be atleast 2 blocks in size
-    if n < 1 {
-        return Err("Ciphertext length must be atleast 16 octets".into());
-    }
+    let n = match (ct_len / BLOCK_LEN) - 1 {
+        0 => { return Err("Ciphertext length must be atleast 16 octets".into()) },
+        n  => n,  // ct must be at least 2 blocks in size
+    };
 
     // Resize pt to ct lenth and copy ct into pt
     pt.resize(ct_len, 0);
