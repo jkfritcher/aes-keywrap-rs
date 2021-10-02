@@ -131,19 +131,19 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 }
 
 fn aes128_ecb_decrypt(key: &[u8], data: &mut [u8]) {
-    let cipher = Aes128Ecb::new_var(key, Default::default()).expect("Failed to create AES context");
+    let cipher = Aes128Ecb::new_from_slices(key, Default::default()).expect("Failed to create AES context");
     // Modifies data in place
     cipher.decrypt(data).expect("Failed to decrypt data block");
 }
 
 fn aes192_ecb_decrypt(key: &[u8], data: &mut [u8]) {
-    let cipher = Aes192Ecb::new_var(key, Default::default()).expect("Failed to create AES context");
+    let cipher = Aes192Ecb::new_from_slices(key, Default::default()).expect("Failed to create AES context");
     // Modifies data in place
     cipher.decrypt(data).expect("Failed to decrypt data block");
 }
 
 fn aes256_ecb_decrypt(key: &[u8], data: &mut [u8]) {
-    let cipher = Aes256Ecb::new_var(key, Default::default()).expect("Failed to create AES context");
+    let cipher = Aes256Ecb::new_from_slices(key, Default::default()).expect("Failed to create AES context");
     // Modifies data in place
     cipher.decrypt(data).expect("Failed to decrypt data block");
 }
