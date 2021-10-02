@@ -1,25 +1,40 @@
-// Copyright (c) 2020, Jason Fritcher <jkf@wolfnet.org>
+// Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
 use crate::{
-    error::KeyWrapError,
     types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN},
 };
 use block_modes::BlockMode;
+use thiserror::Error;
 
-pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapError> {
+#[derive(Error, Debug)]
+pub enum WrapKeyError {
+    #[error("Key length must be 16, 24 or 32 octets")]
+    KeyLengthInvalid,
+
+    #[error("Plaintext length must be a multiple of {0} octets")]
+    PlainTextInvalidLength(usize),
+
+    #[error("Plaintext length can not be longer than {0} octets")]
+    PlainTextLengthTooLong(u32),
+
+    #[error("Plaintext length must be atleast {0} octet(s)")]
+    PlainTextLengthTooShort(usize),
+}
+
+pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKeyError> {
     #[allow(non_snake_case)]
     let A: [u8; BLOCK_LEN] = [0xa6; BLOCK_LEN];
     let mut ct: Vec<u8> = Vec::new();
     let pt_len = match pt.len() {
         pt_len if (pt_len % BLOCK_LEN) > 0 => {
-            return Err("Plaintext length must be a multiple of 8 octets in length".into())
+            return Err(WrapKeyError::PlainTextInvalidLength(BLOCK_LEN));
         },
         pt_len => pt_len,  // pt should be a multiple of BLOCK_LEN
     };
 
     let n = match pt_len / BLOCK_LEN {
-        0 | 1 => { return Err("Plaintext length must be atleast 16 octets".into()) },
+        0 | 1 => { return Err(WrapKeyError::PlainTextLengthTooShort(16)); },
         n  => n,  // pt must be at least 2 blocks in size
     };
 
@@ -28,7 +43,7 @@ pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrap
         16 => aes128_ecb_encrypt,
         24 => aes192_ecb_encrypt,
         32 => aes256_ecb_encrypt,
-        _ => return Err("Key must be 16, 24 or 32 octets in length".into()),
+        _ => return Err(WrapKeyError::KeyLengthInvalid),
     };
 
     // Allocate ct to the proper size
@@ -44,15 +59,15 @@ pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrap
     Ok(ct)
 }
 
-pub fn aes_wrap_with_padding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapError> {
+pub fn aes_wrap_with_padding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKeyError> {
     #[allow(non_snake_case)]
     let mut A: [u8; BLOCK_LEN] = [0xa6, 0x59, 0x59, 0xa6, 0, 0, 0, 0];
     let mut ct: Vec<u8> = Vec::new();
     let pt_len = match pt.len() {
-        0 => { return Err("Plaintext length must be atleast 1 octet".into()) },
+        0 => { return Err(WrapKeyError::PlainTextLengthTooShort(1)); },
         pt_len if pt_len > u32::MAX as usize => {
             // The MLI restricts pt.len() to a u32
-            return Err(format!("Plaintext length can not be larger than {}", u32::MAX).into());
+            return Err(WrapKeyError::PlainTextLengthTooLong(u32::MAX));
         },
         pt_len => pt_len,  // Need atleast one octet of plaintext.
     };
@@ -62,7 +77,7 @@ pub fn aes_wrap_with_padding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapEr
         16 => aes128_ecb_encrypt,
         24 => aes192_ecb_encrypt,
         32 => aes256_ecb_encrypt,
-        _ => return Err("Key must be 16, 24 or 32 octets in length".into()),
+        _ => return Err(WrapKeyError::KeyLengthInvalid),
     };
 
     // Set MLI in A

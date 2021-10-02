@@ -1,23 +1,41 @@
-// Copyright (c) 2020, Jason Fritcher <jkf@wolfnet.org>
+// Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
 use crate::{
-    error::KeyWrapError,
     types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN},
 };
 use block_modes::BlockMode;
+use thiserror::Error;
 
-pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapError> {
+#[derive(Error, Debug)]
+pub enum UnwrapKeyError {
+    #[error("Key length must be 16, 24 or 32 octets")]
+    KeyLengthInvalid,
+
+    #[error("Ciphertext length must be a multiple of {0} octets")]
+    CipherTextInvalidLength(usize),
+
+    #[error("Ciphertext length can not be longer than {0} octets")]
+    CipherTextLengthTooLong(u32),
+
+    #[error("Ciphertext length must be atleast {0} octet(s)")]
+    CipherTextLengthTooShort(usize),
+
+    #[error("Failed to successfully unwrap key")]
+    CipherTextValidationFailure,
+}
+
+pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, UnwrapKeyError> {
     let mut pt: Vec<u8> = Vec::new();
     let ct_len = match ct.len() {
         ct_len if (ct_len % BLOCK_LEN) > 0 => {
-            return Err("Ciphertext length must be a multiple of 8 octets in length".into())
+            return Err(UnwrapKeyError::CipherTextInvalidLength(BLOCK_LEN));
         },
         ct_len => ct_len,  // ct should be a multiple of BLOCK_LEN
     };
 
     let n = match (ct_len / BLOCK_LEN) - 1 {
-        0 | 1 => { return Err("Ciphertext length must be atleast 24 octets".into()) },
+        0 | 1 => { return Err(UnwrapKeyError::CipherTextLengthTooShort(24)); },
         n  => n,  // ct must be at least 3 blocks in size
     };
 
@@ -30,7 +48,7 @@ pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWr
         16 => aes128_ecb_decrypt,
         24 => aes192_ecb_decrypt,
         32 => aes256_ecb_decrypt,
-        _ => return Err("Key must be 16, 24 or 32 octets in length".into()),
+        _ => return Err(UnwrapKeyError::KeyLengthInvalid),
     };
 
     // Unwrap the key into pt
@@ -40,23 +58,23 @@ pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWr
     #[allow(non_snake_case)]
     let A: [u8; BLOCK_LEN] = [0xa6; BLOCK_LEN];
     if !constant_time_eq(&pt[0..BLOCK_LEN], &A[0..BLOCK_LEN]) {
-        return Err("Failed to successfully unwrap key.".into());
+        return Err(UnwrapKeyError::CipherTextValidationFailure);
     }
 
     Ok(pt[BLOCK_LEN..].to_vec())
 }
 
-pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrapError> {
+pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, UnwrapKeyError> {
     let mut pt: Vec<u8> = Vec::new();
     let ct_len = match ct.len() {
         ct_len if (ct_len % BLOCK_LEN) > 0 => {
-            return Err("Ciphertext length must be a multiple of 8 octets in length".into())
+            return Err(UnwrapKeyError::CipherTextInvalidLength(BLOCK_LEN));
         },
         ct_len => ct_len,  // ct should be a multiple of BLOCK_LEN
     };
 
     let n = match (ct_len / BLOCK_LEN) - 1 {
-        0 => { return Err("Ciphertext length must be atleast 16 octets".into()) },
+        0 => { return Err(UnwrapKeyError::CipherTextLengthTooShort(16)); },
         n  => n,  // ct must be at least 2 blocks in size
     };
 
@@ -69,7 +87,7 @@ pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrap
         16 => aes128_ecb_decrypt,
         24 => aes192_ecb_decrypt,
         32 => aes256_ecb_decrypt,
-        _ => return Err("Key must be 16, 24 or 32 octets in length".into()),
+        _ => return Err(UnwrapKeyError::KeyLengthInvalid),
     };
 
     // Unwrap the key into pt
@@ -80,7 +98,7 @@ pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrap
     let A: [u8; 4] = [0xa6, 0x59, 0x59, 0xa6];
     if !constant_time_eq(&pt[0..4], &A) {
         // Static part of the IV is invalid
-        return Err("Failed to successfully unwrap key.".into());
+        return Err(UnwrapKeyError::CipherTextValidationFailure);
     }
     let mli = {
         let mut mli_bytes: [u8; 4] = Default::default();
@@ -89,14 +107,14 @@ pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, KeyWrap
     };
     if !(mli > (8 * (n - 1)) && mli <= (8 * n)) {
         // MLI is an invalid value
-        return Err("Failed to successfully unwrap key.".into());
+        return Err(UnwrapKeyError::CipherTextValidationFailure);
     }
     let pad_len = ct_len - mli - BLOCK_LEN;
     let padding = &pt[(ct_len - pad_len)..];
     for pad_byte in padding {
         if *pad_byte != 0 {
             // Padding must be all zeros
-            return Err("Failed to successfully unwrap key.".into());
+            return Err(UnwrapKeyError::CipherTextValidationFailure);
         }
     }
 

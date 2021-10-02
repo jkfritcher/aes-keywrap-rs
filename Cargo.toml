@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 aes = "0.6"
 block-modes = "0.7"
+thiserror = "1.0"
 
 [dev-dependencies]
 hex-literal = "0.3"

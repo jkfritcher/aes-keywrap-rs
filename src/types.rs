@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Jason Fritcher <jkf@wolfnet.org>
+// Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
 pub(crate) use aes::{Aes128, Aes192, Aes256};
