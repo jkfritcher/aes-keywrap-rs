@@ -1,0 +1,15 @@
+[package]
+name = "aes-keywrap"
+description = "AES Key Wrap implementation in Rust (RFC-3394/5649 & NIST SP 800-38F compliant)"
+license = "BSD-3-Clause"
+version = "0.1.0"
+authors = ["Jason Fritcher <jkf@wolfnet.org>"]
+edition = "2018"
+
+[dependencies]
+aes = "0.7"
+block-modes = "0.8"
+thiserror = "1.0"
+
+[dev-dependencies]
+hex-literal = "0.3"
