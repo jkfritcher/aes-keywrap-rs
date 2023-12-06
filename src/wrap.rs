@@ -1,9 +1,7 @@
 // Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
-use crate::{
-    types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN},
-};
+use crate::types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN};
 use block_modes::BlockMode;
 use thiserror::Error;
 
@@ -25,29 +23,21 @@ pub enum WrapKeyError {
 pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKeyError> {
     #[allow(non_snake_case)]
     let A: [u8; BLOCK_LEN] = [0xa6; BLOCK_LEN];
-    let mut ct: Vec<u8> = Vec::new();
-    let pt_len = match pt.len() {
-        pt_len if (pt_len % BLOCK_LEN) > 0 => {
-            return Err(WrapKeyError::PlainTextInvalidLength(BLOCK_LEN));
-        },
-        pt_len => pt_len,  // pt should be a multiple of BLOCK_LEN
-    };
+    let pt_len = pt.len();
+    if pt_len % BLOCK_LEN != 0 {
+        return Err(WrapKeyError::PlainTextInvalidLength(BLOCK_LEN));
+    }
 
-    let n = match pt_len / BLOCK_LEN {
-        0 | 1 => { return Err(WrapKeyError::PlainTextLengthTooShort(16)); },
-        n  => n,  // pt must be at least 2 blocks in size
-    };
+    let n = pt_len / BLOCK_LEN;
+    if n < 2 {
+        return Err(WrapKeyError::PlainTextLengthTooShort(16));
+    }
 
-    // Check for valid key lengths and get func pointer
-    let aes_func = match key.len() {
-        16 => aes128_ecb_encrypt,
-        24 => aes192_ecb_encrypt,
-        32 => aes256_ecb_encrypt,
-        _ => return Err(WrapKeyError::KeyLengthInvalid),
-    };
+    // Get the AES function for the key length
+    let aes_func = get_aes_func(key.len())?;
 
     // Allocate ct to the proper size
-    ct.resize(A.len() + pt_len, 0);
+    let mut ct = vec![0u8; A.len() + pt_len];
 
     // Because we're encrypting in place, copy A and pt into ct
     ct[..BLOCK_LEN].copy_from_slice(&A);
@@ -62,38 +52,26 @@ pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKey
 pub fn aes_wrap_with_padding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKeyError> {
     #[allow(non_snake_case)]
     let mut A: [u8; BLOCK_LEN] = [0xa6, 0x59, 0x59, 0xa6, 0, 0, 0, 0];
-    let mut ct: Vec<u8> = Vec::new();
-    let pt_len = match pt.len() {
-        0 => { return Err(WrapKeyError::PlainTextLengthTooShort(1)); },
-        pt_len if pt_len > u32::MAX as usize => {
-            // The MLI restricts pt.len() to a u32
-            return Err(WrapKeyError::PlainTextLengthTooLong(u32::MAX));
-        },
-        pt_len => pt_len,  // Need atleast one octet of plaintext.
-    };
+    let pt_len = pt.len();
+    if pt_len == 0 {
+        return Err(WrapKeyError::PlainTextLengthTooShort(1));
+    } else if pt_len > u32::MAX as usize {
+        return Err(WrapKeyError::PlainTextLengthTooLong(u32::MAX));
+    }
 
-    // Check for valid key lengths and get func pointer
-    let aes_func = match key.len() {
-        16 => aes128_ecb_encrypt,
-        24 => aes192_ecb_encrypt,
-        32 => aes256_ecb_encrypt,
-        _ => return Err(WrapKeyError::KeyLengthInvalid),
-    };
+    // Get the AES function for the key length
+    let aes_func = get_aes_func(key.len())?;
 
     // Set MLI in A
     let pt_len_u32 = pt_len as u32;
     A[4..].copy_from_slice(&pt_len_u32.to_be_bytes());
 
     // Calculate padded length
-    let padded_len = pt_len
-        + match pt_len % BLOCK_LEN {
-            0 => 0,
-            n => BLOCK_LEN - n,
-        };
+    let padded_len = (pt_len + BLOCK_LEN - 1) / BLOCK_LEN * BLOCK_LEN;
     let n = padded_len / BLOCK_LEN;
 
     // Allocate ct to the required size
-    ct.resize(A.len() + padded_len, 0);
+    let mut ct = vec![0u8; A.len() + padded_len];
 
     // Because we're encrypting in place, copy A and pt into ct
     // Padding happens automatically if pt isn't a block length
@@ -104,6 +82,15 @@ pub fn aes_wrap_with_padding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKeyEr
     wrap_core(key, n, ct.as_mut_slice(), aes_func);
 
     Ok(ct)
+}
+
+fn get_aes_func(key_len: usize) -> Result<fn(&[u8], &mut [u8]), WrapKeyError> {
+    match key_len {
+        16 => Ok(aes128_ecb_encrypt),
+        24 => Ok(aes192_ecb_encrypt),
+        32 => Ok(aes256_ecb_encrypt),
+        _ => Err(WrapKeyError::KeyLengthInvalid),
+    }
 }
 
 fn aes128_ecb_encrypt(key: &[u8], data: &mut [u8]) {

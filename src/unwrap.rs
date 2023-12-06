@@ -1,9 +1,7 @@
 // Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
-use crate::{
-    types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN},
-};
+use crate::types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN};
 use block_modes::BlockMode;
 use thiserror::Error;
 
@@ -26,30 +24,22 @@ pub enum UnwrapKeyError {
 }
 
 pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, UnwrapKeyError> {
-    let mut pt: Vec<u8> = Vec::new();
-    let ct_len = match ct.len() {
-        ct_len if (ct_len % BLOCK_LEN) > 0 => {
-            return Err(UnwrapKeyError::CipherTextInvalidLength(BLOCK_LEN));
-        },
-        ct_len => ct_len,  // ct should be a multiple of BLOCK_LEN
-    };
+    let ct_len = ct.len();
+    if ct_len % BLOCK_LEN != 0 {
+        return Err(UnwrapKeyError::CipherTextInvalidLength(BLOCK_LEN));
+    }
 
-    let n = match (ct_len / BLOCK_LEN) - 1 {
-        0 | 1 => { return Err(UnwrapKeyError::CipherTextLengthTooShort(24)); },
-        n  => n,  // ct must be at least 3 blocks in size
-    };
+    let n = (ct_len / BLOCK_LEN) - 1;
+    if n < 2 {
+        return Err(UnwrapKeyError::CipherTextLengthTooShort(24));
+    }
 
-    // Resize pt to ct lenth and copy ct into pt
-    pt.resize(ct_len, 0);
+    // Allocate pt to ct lenth and copy ct into pt
+    let mut pt = vec![0u8; ct_len];
     pt.as_mut_slice().copy_from_slice(ct);
 
-    // Check for valid key lengths and get func pointer
-    let aes_func = match key.len() {
-        16 => aes128_ecb_decrypt,
-        24 => aes192_ecb_decrypt,
-        32 => aes256_ecb_decrypt,
-        _ => return Err(UnwrapKeyError::KeyLengthInvalid),
-    };
+    // Get the AES function for the key length
+    let aes_func = get_aes_func(key.len())?;
 
     // Unwrap the key into pt
     unwrap_core(key, n, pt.as_mut_slice(), aes_func);
@@ -65,30 +55,22 @@ pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, Unwra
 }
 
 pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, UnwrapKeyError> {
-    let mut pt: Vec<u8> = Vec::new();
-    let ct_len = match ct.len() {
-        ct_len if (ct_len % BLOCK_LEN) > 0 => {
-            return Err(UnwrapKeyError::CipherTextInvalidLength(BLOCK_LEN));
-        },
-        ct_len => ct_len,  // ct should be a multiple of BLOCK_LEN
-    };
+    let ct_len = ct.len();
+    if ct_len % BLOCK_LEN != 0 {
+        return Err(UnwrapKeyError::CipherTextInvalidLength(BLOCK_LEN));
+    }
 
-    let n = match (ct_len / BLOCK_LEN) - 1 {
-        0 => { return Err(UnwrapKeyError::CipherTextLengthTooShort(16)); },
-        n  => n,  // ct must be at least 2 blocks in size
-    };
+    let n = (ct_len / BLOCK_LEN) - 1;
+    if n < 1 {
+        return Err(UnwrapKeyError::CipherTextLengthTooShort(16));
+    }
 
-    // Resize pt to ct lenth and copy ct into pt
-    pt.resize(ct_len, 0);
+    // Allocate pt to ct lenth and copy ct into pt
+    let mut pt = vec![0u8; ct_len];
     pt.as_mut_slice().copy_from_slice(ct);
 
-    // Check for valid key lengths and get func pointer
-    let aes_func = match key.len() {
-        16 => aes128_ecb_decrypt,
-        24 => aes192_ecb_decrypt,
-        32 => aes256_ecb_decrypt,
-        _ => return Err(UnwrapKeyError::KeyLengthInvalid),
-    };
+    // Get the AES function for the key length
+    let aes_func = get_aes_func(key.len())?;
 
     // Unwrap the key into pt
     unwrap_core(key, n, pt.as_mut_slice(), aes_func);
@@ -128,6 +110,15 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     }
     let c = a.iter().zip(b.iter()).fold(0, |acc, (a, b)| acc | (a ^ b));
     c == 0
+}
+
+fn get_aes_func(key_len: usize) -> Result<fn(&[u8], &mut [u8]), UnwrapKeyError> {
+    match key_len {
+        16 => Ok(aes128_ecb_decrypt),
+        24 => Ok(aes192_ecb_decrypt),
+        32 => Ok(aes256_ecb_decrypt),
+        _ => Err(UnwrapKeyError::KeyLengthInvalid),
+    }
 }
 
 fn aes128_ecb_decrypt(key: &[u8], data: &mut [u8]) {
