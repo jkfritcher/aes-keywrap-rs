@@ -34,9 +34,8 @@ pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, Unwra
         return Err(UnwrapKeyError::CipherTextLengthTooShort(24));
     }
 
-    // Allocate pt to ct lenth and copy ct into pt
-    let mut pt = vec![0u8; ct_len];
-    pt.as_mut_slice().copy_from_slice(ct);
+    // Copy ct into a new vec for unwrapping in place
+    let mut pt = ct.to_vec();
 
     // Get the AES function for the key length
     let aes_func = get_aes_func(key.len())?;
@@ -45,9 +44,8 @@ pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, Unwra
     unwrap_core(key, n, pt.as_mut_slice(), aes_func);
 
     // Validate the IV
-    #[allow(non_snake_case)]
-    let A: [u8; BLOCK_LEN] = [0xa6; BLOCK_LEN];
-    if !constant_time_eq(&pt[0..BLOCK_LEN], &A[0..BLOCK_LEN]) {
+    const A: [u8; BLOCK_LEN] = [0xa6; BLOCK_LEN];
+    if !constant_time_eq(&pt[0..BLOCK_LEN], &A) {
         return Err(UnwrapKeyError::CipherTextValidationFailure);
     }
 
@@ -65,9 +63,8 @@ pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, UnwrapK
         return Err(UnwrapKeyError::CipherTextLengthTooShort(16));
     }
 
-    // Allocate pt to ct lenth and copy ct into pt
-    let mut pt = vec![0u8; ct_len];
-    pt.as_mut_slice().copy_from_slice(ct);
+    // Copy ct into a new vec for unwrapping in place
+    let mut pt = ct.to_vec();
 
     // Get the AES function for the key length
     let aes_func = get_aes_func(key.len())?;
@@ -76,8 +73,7 @@ pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, UnwrapK
     unwrap_core(key, n, pt.as_mut_slice(), aes_func);
 
     // Validate the IV and MLI
-    #[allow(non_snake_case)]
-    let A: [u8; 4] = [0xa6, 0x59, 0x59, 0xa6];
+    const A: [u8; 4] = [0xa6, 0x59, 0x59, 0xa6];
     if !constant_time_eq(&pt[0..4], &A) {
         // Static part of the IV is invalid
         return Err(UnwrapKeyError::CipherTextValidationFailure);

@@ -21,8 +21,7 @@ pub enum WrapKeyError {
 }
 
 pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKeyError> {
-    #[allow(non_snake_case)]
-    let A: [u8; BLOCK_LEN] = [0xa6; BLOCK_LEN];
+    const A: [u8; BLOCK_LEN] = [0xa6; BLOCK_LEN];
     let pt_len = pt.len();
     if pt_len % BLOCK_LEN != 0 {
         return Err(WrapKeyError::PlainTextInvalidLength(BLOCK_LEN));
@@ -37,11 +36,11 @@ pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKey
     let aes_func = get_aes_func(key.len())?;
 
     // Allocate ct to the proper size
-    let mut ct = vec![0u8; A.len() + pt_len];
+    let mut ct = Vec::with_capacity(A.len() + pt_len);
 
     // Because we're encrypting in place, copy A and pt into ct
-    ct[..BLOCK_LEN].copy_from_slice(&A);
-    ct[BLOCK_LEN..].copy_from_slice(pt);
+    ct.extend_from_slice(&A);
+    ct.extend_from_slice(pt);
 
     // Wrap the key into ct
     wrap_core(key, n, ct.as_mut_slice(), aes_func);
@@ -71,12 +70,16 @@ pub fn aes_wrap_with_padding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKeyEr
     let n = padded_len / BLOCK_LEN;
 
     // Allocate ct to the required size
-    let mut ct = vec![0u8; A.len() + padded_len];
+    let mut ct = Vec::with_capacity(A.len() + padded_len);
 
     // Because we're encrypting in place, copy A and pt into ct
-    // Padding happens automatically if pt isn't a block length
-    ct[..BLOCK_LEN].copy_from_slice(&A);
-    ct[BLOCK_LEN..BLOCK_LEN + pt_len].copy_from_slice(pt);
+    // Adds padding as needed
+    ct.extend_from_slice(&A);
+    ct.extend_from_slice(pt);
+    let pad_len = ct.capacity() - ct.len();
+    ct.extend::<Vec<u8>>(
+        (0..pad_len).map(|_| 0u8).collect()
+    );
 
     // Wrap the key into ct
     wrap_core(key, n, ct.as_mut_slice(), aes_func);
@@ -118,7 +121,7 @@ where
     if ct.len() > AES_BLOCK_LEN {
         // Allocate buffer for operations in loop
         // tmp = A | R[i]
-        let mut tmp: Vec<u8> = vec![0u8; AES_BLOCK_LEN];
+        let mut tmp = vec![0u8; AES_BLOCK_LEN];
 
         // Copy A into buffer
         tmp[0..BLOCK_LEN].copy_from_slice(&ct[0..BLOCK_LEN]);
