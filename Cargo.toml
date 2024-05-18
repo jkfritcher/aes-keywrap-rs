@@ -2,7 +2,7 @@
 name = "aes-keywrap"
 description = "AES Key Wrap implementation in Rust (RFC-3394/5649 & NIST SP 800-38F compliant)"
 license = "BSD-3-Clause"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Jason Fritcher <jkf@wolfnet.org>"]
 edition = "2021"
 

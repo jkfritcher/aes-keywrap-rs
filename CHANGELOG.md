@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Simplified calculations withing the wrap and unwrap functions to improve readability
+- Simplified calculations within the wrap and unwrap functions to improve readability
 - Refactored aes function selection to remove duplication and simplify error handling
 - Updated to Rust 2021
 
