@@ -1,4 +1,4 @@
-// Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
+// Copyright (c) 2020-2024, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
 #[cfg(test)]

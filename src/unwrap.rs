@@ -1,7 +1,11 @@
-// Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
+// Copyright (c) 2020-2024, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
-use crate::types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN};
+use crate::types::{
+    Aes128Ecb, Aes192Ecb, Aes256Ecb,
+    AES_BLOCK_LEN, AES128_KEY_LEN, AES192_KEY_LEN, AES256_KEY_LEN,
+    BLOCK_LEN
+};
 use block_modes::BlockMode;
 use thiserror::Error;
 
@@ -31,7 +35,7 @@ pub fn aes_unwrap_with_nopadding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, Unwra
 
     let n = (ct_len / BLOCK_LEN) - 1;
     if n < 2 {
-        return Err(UnwrapKeyError::CipherTextLengthTooShort(24));
+        return Err(UnwrapKeyError::CipherTextLengthTooShort(BLOCK_LEN * 3));
     }
 
     // Copy ct into a new vec for unwrapping in place
@@ -60,7 +64,7 @@ pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, UnwrapK
 
     let n = (ct_len / BLOCK_LEN) - 1;
     if n < 1 {
-        return Err(UnwrapKeyError::CipherTextLengthTooShort(16));
+        return Err(UnwrapKeyError::CipherTextLengthTooShort(BLOCK_LEN * 2));
     }
 
     // Copy ct into a new vec for unwrapping in place
@@ -83,7 +87,7 @@ pub fn aes_unwrap_with_padding(ct: &[u8], key: &[u8]) -> Result<Vec<u8>, UnwrapK
         mli_bytes[..].copy_from_slice(&pt[4..8]);
         u32::from_be_bytes(mli_bytes) as usize
     };
-    if !(mli > (8 * (n - 1)) && mli <= (8 * n)) {
+    if !(mli > (BLOCK_LEN * (n - 1)) && mli <= (BLOCK_LEN * n)) {
         // MLI is an invalid value
         return Err(UnwrapKeyError::CipherTextValidationFailure);
     }
@@ -110,9 +114,9 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 
 fn get_aes_func(key_len: usize) -> Result<fn(&[u8], &mut [u8]), UnwrapKeyError> {
     match key_len {
-        16 => Ok(aes128_ecb_decrypt),
-        24 => Ok(aes192_ecb_decrypt),
-        32 => Ok(aes256_ecb_decrypt),
+        AES128_KEY_LEN => Ok(aes128_ecb_decrypt),
+        AES192_KEY_LEN => Ok(aes192_ecb_decrypt),
+        AES256_KEY_LEN => Ok(aes256_ecb_decrypt),
         _ => Err(UnwrapKeyError::KeyLengthInvalid),
     }
 }

@@ -1,7 +1,11 @@
-// Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
+// Copyright (c) 2020-2024, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
-use crate::types::{Aes128Ecb, Aes192Ecb, Aes256Ecb, AES_BLOCK_LEN, BLOCK_LEN};
+use crate::types::{
+    Aes128Ecb, Aes192Ecb, Aes256Ecb,
+    AES_BLOCK_LEN, AES128_KEY_LEN, AES192_KEY_LEN, AES256_KEY_LEN,
+    BLOCK_LEN
+};
 use block_modes::BlockMode;
 use thiserror::Error;
 
@@ -29,7 +33,7 @@ pub fn aes_wrap_with_nopadding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKey
 
     let n = pt_len / BLOCK_LEN;
     if n < 2 {
-        return Err(WrapKeyError::PlainTextLengthTooShort(16));
+        return Err(WrapKeyError::PlainTextLengthTooShort(BLOCK_LEN * 2));
     }
 
     // Get the AES function for the key length
@@ -89,9 +93,9 @@ pub fn aes_wrap_with_padding(pt: &[u8], key: &[u8]) -> Result<Vec<u8>, WrapKeyEr
 
 fn get_aes_func(key_len: usize) -> Result<fn(&[u8], &mut [u8]), WrapKeyError> {
     match key_len {
-        16 => Ok(aes128_ecb_encrypt),
-        24 => Ok(aes192_ecb_encrypt),
-        32 => Ok(aes256_ecb_encrypt),
+        AES128_KEY_LEN => Ok(aes128_ecb_encrypt),
+        AES192_KEY_LEN => Ok(aes192_ecb_encrypt),
+        AES256_KEY_LEN => Ok(aes256_ecb_encrypt),
         _ => Err(WrapKeyError::KeyLengthInvalid),
     }
 }

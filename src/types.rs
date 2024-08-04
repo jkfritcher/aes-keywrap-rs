@@ -1,4 +1,4 @@
-// Copyright (c) 2020,2021, Jason Fritcher <jkf@wolfnet.org>
+// Copyright (c) 2020-2024, Jason Fritcher <jkf@wolfnet.org>
 // All rights reserved.
 
 pub(crate) use aes::{Aes128, Aes192, Aes256};
@@ -11,3 +11,7 @@ pub(crate) type Aes256Ecb = Ecb<Aes256, NoPadding>;
 
 pub(crate) const BLOCK_LEN: usize = 8;
 pub(crate) const AES_BLOCK_LEN: usize = 16;
+
+pub(crate) const AES128_KEY_LEN: usize = 16;
+pub(crate) const AES192_KEY_LEN: usize = 24;
+pub(crate) const AES256_KEY_LEN: usize = 32;
